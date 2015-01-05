@@ -1,0 +1,26 @@
+{
+    "name": "dlds/yii2-sortable",
+    "description": "Yii2 sortable module",
+    "keywords": ["yii2", "sortable", "models"],
+    "type": "yii2-extension",
+    "license": "BSD-3-Clause",
+    "support": {
+        "issues": "https://github.com/dlds/yii2-sortable/issues",
+        "wiki": "https://github.com/dlds/yii2-sortable/wiki",
+        "source": "https://github.com/dlds/yii2-sortable"
+    },
+    "authors": [
+        {
+            "name": "Jiri Svoboda",
+            "email": "jiri.svoboda@dlds.cz"
+        }
+    ],
+    "require": {
+        "yiisoft/yii2": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "dlds\\sortable\\": ""
+        }
+    }
+}
