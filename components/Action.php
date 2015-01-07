@@ -11,18 +11,26 @@ namespace dlds\sortable\components;
 /**
  * Action class for Sortable module
  */
-class Action extends yii\base\Action {
+class Action extends \yii\base\Action {
 
-    public $model;
+    public $modelClass;
 
     public function run()
     {
-        if ($this->model === null)
+        if (!$this->modelClass)
         {
             throw new CException('Model class must be specified.');
         }
 
-        $this->model->setSortOrder();
+        /** @var \yii\db\ActiveRecord $model */
+        $model = new $this->modelClass;
+
+        if (!$model->hasMethod('setSortOrder', true))
+        {
+            throw new InvalidConfigException("Sortable behavior is not attached to model.");
+        }
+
+        $model->setSortOrder();
     }
 
 }

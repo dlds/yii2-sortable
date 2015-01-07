@@ -43,17 +43,29 @@ class Behavior extends \yii\base\Behavior {
     public $index = 'sortItems';
 
     /**
+     * @return array events
+     */
+    public function events()
+    {
+        return [ActiveRecord::EVENT_BEFORE_INSERT => 'beforeInsert'];
+    }
+
+    /**
      * Before save
      */
-    public function beforeValidate($event)
+    public function beforeInsert()
     {
-        // TODO: pack this in extension BoostedGridView
-        if ($this->owner->isNewRecord)
-        {
-            $this->owner->{$this->column} = $this->getMaxSortOrder() + 1;
-        }
+        /** @var ActiveRecord $model */
+        $model = $this->owner;
 
-        return parent::beforeValidate($event);
+        if (!$model->hasAttribute($this->column))
+        {
+            throw new InvalidConfigException("Invalid sortable column `{$this->column}`.");
+        }
+        
+        $maxOrder = $model->find()->max($model->tableName() . '.' . $this->column);
+        
+        $model->{$this->column} = $maxOrder + 1;
     }
 
     /**
