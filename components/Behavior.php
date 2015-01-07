@@ -8,6 +8,11 @@
 
 namespace dlds\sortable\components;
 
+use Yii;
+use yii\db\Query;
+use yii\db\ActiveRecord;
+use yii\helpers\ArrayHelper;
+
 /**
  * Behavior class which handles models sorting
  *
@@ -62,9 +67,9 @@ class Behavior extends \yii\base\Behavior {
         {
             throw new InvalidConfigException("Invalid sortable column `{$this->column}`.");
         }
-        
+
         $maxOrder = $model->find()->max($model->tableName() . '.' . $this->column);
-        
+
         $model->{$this->column} = $maxOrder + 1;
     }
 
@@ -94,11 +99,6 @@ class Behavior extends \yii\base\Behavior {
             return $this->owner->{$this->key};
         }
 
-        if (is_array($this->owner->primaryKey))
-        {
-            throw new Exception('GSortableBehavior owner primaryKey is an array - you have to set sortAttrID');
-        }
-
         return $this->owner->primaryKey;
     }
 
@@ -113,9 +113,9 @@ class Behavior extends \yii\base\Behavior {
             return $this->key;
         }
 
-        if (is_array($this->owner->primaryKey))
+        if (is_array($this->owner->tableSchema->primaryKey))
         {
-            throw new Exception('GSortableBehavior owner primaryKey is an array - you have to set sortAttrID');
+            return ArrayHelper::getValue($this->owner->tableSchema->primaryKey, 0);
         }
 
         return $this->owner->tableSchema->primaryKey;
@@ -147,23 +147,22 @@ class Behavior extends \yii\base\Behavior {
      */
     public function getMaxSortOrder($items = [], $restrictions = [])
     {
-        /* @var $connection \yii\db\Connection */
-        $command = \Yii::$app->db->createCommand('SELECT MAX(' . $this->column . ')')->from($this->owner->tableName());
+        $query = (new Query())->from($this->owner->tableName());
 
         if (!empty($items))
         {
-            $command->where(['in', $this->getOwnerKeyAttr(), $items]);
+            $query->where(['in', $this->getOwnerKeyAttr(), $items]);
         }
 
         if (!empty($restrictions))
         {
             foreach ($restrictions as $column => $values)
             {
-                $command->andWhere(['in', $column, $values]);
+                $query->andWhere(['in', $column, $values]);
             }
         }
 
-        return (int) $command->queryScalar();
+        return (int) $query->max($this->column);
     }
 
     /**
@@ -173,14 +172,13 @@ class Behavior extends \yii\base\Behavior {
      */
     public function resetSortOrder($items = [])
     {
-        $sql = 'UPDATE ' . $this->owner->tableName() . ' SET ' . $this->column . ' = ' . $this->getOwnerKeyAttr();
+        $condition = (empty($items)) ? '' : sprintf(' WHERE %s IN (%s)', $this->getOwnerKeyAttr(), implode(', ', $items));
 
-        if (!empty($items))
-        {
-            $sql .= ' WHERE ' . $this->getOwnerKeyAttr() . ' IN (' . implode(', ', $items) . ')';
-        }
+        $sql = sprintf('UPDATE `%s` SET `%s`=`%s`%s', $this->owner->tableName(), $this->column, $this->getOwnerKeyAttr(), $condition);
 
-        return \Yii::$app->db->createCommand($sql)->execute();
+        $query = \Yii::$app->db->createCommand($sql);
+
+        return $query->execute();
     }
 
     /**
@@ -188,11 +186,11 @@ class Behavior extends \yii\base\Behavior {
      */
     public function setSortOrder()
     {
-        $itemKeys = Yii::app()->request->getPost($this->index, false);
+        $itemKeys = Yii::$app->request->post($this->index, false);
 
         if ($itemKeys && is_array($itemKeys))
         {
-            $transaction = $this->owner->dbConnection->beginTransaction();
+            $transaction = \Yii::$app->db->beginTransaction();
 
             $maxSortOrder = $this->getMaxSortOrder($itemKeys);
 
@@ -207,9 +205,9 @@ class Behavior extends \yii\base\Behavior {
 
             for ($i = 0; $i < count($itemKeys); $i++)
             {
-                $model = $this->owner->findByAttributes([
-                    $this->getOwnerKeyAttr() => $itemKeys[$i],
-                ]);
+                $model = $this->owner->find()->where([
+                            $this->getOwnerKeyAttr() => $itemKeys[$i]
+                        ])->one();
 
                 $this->_pullRestrictions($model, $restrictions);
 
@@ -239,11 +237,10 @@ class Behavior extends \yii\base\Behavior {
      */
     private function _getCurrentModels($items = [])
     {
-        $criteria = new DbCriteria;
-        $criteria->addInCondition(sprintf('%s.%s', $this->owner->getTableAlias(), $this->getOwnerKeyAttr()), $items);
-        $criteria->order = $this->column . ' DESC';
-
-        return $this->owner->find($criteria);
+        return $this->owner->find()
+                        ->where([$this->getOwnerKeyAttr() => $items])
+                        ->orderBy([$this->column => SORT_DESC])
+                        ->all();
     }
 
     /**
@@ -251,7 +248,7 @@ class Behavior extends \yii\base\Behavior {
      * @param CModel $model given model
      * @param array $restrictions given restrictions
      */
-    private function _pullRestrictions(CModel $model, &$restrictions)
+    private function _pullRestrictions(ActiveRecord $model, &$restrictions)
     {
         foreach ($this->restrictions as $attr)
         {
@@ -265,15 +262,15 @@ class Behavior extends \yii\base\Behavior {
     /**
      * Assignes given restrictions to given criteria
      * @param array $restrictions given restrictions
-     * @param CDbCriteria $criteria given criteria
+     * @param CDbCriteria $query given criteria
      */
-    private function _assignRestrictions($restrictions, &$criteria)
+    private function _assignRestrictions($restrictions, &$query)
     {
         if (!empty($restrictions))
         {
             foreach ($restrictions as $column => $values)
             {
-                $criteria->addInCondition($column, $values);
+                $query->where([$column => $values]);
             }
         }
     }
@@ -281,16 +278,16 @@ class Behavior extends \yii\base\Behavior {
     /**
      * Fixes sort gaps which can occure after delete entry
      */
-    private function _fixSortGaps($restrictions = array())
+    private function _fixSortGaps($restrictions = [])
     {
-        $transaction = $this->owner->dbConnection->beginTransaction();
+        $transaction = \Yii::$app->db->beginTransaction();
 
-        $criteria = new CDbCriteria;
-        $criteria->order = $this->column;
+        $query = $this->owner->find();
+        $query->orderBy([$this->column => SORT_ASC]);
 
-        $this->_assignRestrictions($restrictions, $criteria);
+        $this->_assignRestrictions($restrictions, $query);
 
-        $models = $this->owner->findAll($criteria);
+        $models = $query->all();
 
         $sortOrder = 1;
 
