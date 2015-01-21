@@ -52,13 +52,16 @@ class Behavior extends \yii\base\Behavior {
      */
     public function events()
     {
-        return [ActiveRecord::EVENT_BEFORE_INSERT => 'beforeInsert'];
+        return [
+            ActiveRecord::EVENT_BEFORE_INSERT => 'handleBeforeInsert',
+            ActiveRecord::EVENT_AFTER_DELETE => 'handleAfterDelete'
+        ];
     }
 
     /**
      * Before save
      */
-    public function beforeInsert()
+    public function handleBeforeInsert()
     {
         /** @var ActiveRecord $model */
         $model = $this->owner;
@@ -68,7 +71,11 @@ class Behavior extends \yii\base\Behavior {
             throw new InvalidConfigException("Invalid sortable column `{$this->column}`.");
         }
 
-        $maxOrder = $model->find()->max($model->tableName() . '.' . $this->column);
+        $restrictions = [];
+
+        $this->_pullRestrictions($this->owner, $restrictions);
+
+        $maxOrder = $this->getMaxSortOrder([], $restrictions);
 
         $model->{$this->column} = $maxOrder + 1;
     }
@@ -76,7 +83,7 @@ class Behavior extends \yii\base\Behavior {
     /**
      * After delete
      */
-    public function afterDelete($event)
+    public function handleAfterDelete()
     {
         $restrictions = [];
 
@@ -84,8 +91,15 @@ class Behavior extends \yii\base\Behavior {
 
         // TODO: avoid multiple calls of fixSortGaps when deleting multiple models in once
         $this->_fixSortGaps($restrictions);
+    }
 
-        parent::afterDelete($event);
+    /**
+     * Retrieves sort column name
+     * @return string sort column name
+     */
+    public function getSortColumn()
+    {
+        return $this->column;
     }
 
     /**
@@ -184,7 +198,7 @@ class Behavior extends \yii\base\Behavior {
     /**
      * Sets sort order according to provided data in POST
      */
-    public function setSortOrder()
+    public function setSortOrder($sort)
     {
         $itemKeys = Yii::$app->request->post($this->index, false);
 
@@ -199,7 +213,7 @@ class Behavior extends \yii\base\Behavior {
                 $this->resetSortOrder($itemKeys);
             }
 
-            $currentModels = $this->_getCurrentModels($itemKeys);
+            $currentModels = $this->_getCurrentModels($itemKeys, $sort);
 
             $restrictions = [];
 
@@ -208,11 +222,9 @@ class Behavior extends \yii\base\Behavior {
                 $model = $this->owner->find()->where([
                             $this->getOwnerKeyAttr() => $itemKeys[$i]
                         ])->one();
-                
+
                 $this->_pullRestrictions($model, $restrictions);
 
-                \Yii::trace('Condition: ' . $model->{$this->column}. ' '. $currentModels[$i]->{$this->column});
-                
                 if ($model->{$this->column} != $currentModels[$i]->{$this->column})
                 {
                     $model->{$this->column} = $currentModels[$i]->{$this->column};
@@ -237,11 +249,11 @@ class Behavior extends \yii\base\Behavior {
      * @param array $items current models keys
      * @return array current models
      */
-    private function _getCurrentModels($items = [])
+    private function _getCurrentModels($items = [], $sort = SORT_DESC)
     {
         return $this->owner->find()
                         ->where([$this->getOwnerKeyAttr() => $items])
-                        ->orderBy([$this->column => SORT_DESC])
+                        ->orderBy([$this->column => $sort])
                         ->all();
     }
 
