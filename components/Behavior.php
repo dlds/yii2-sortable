@@ -208,9 +208,11 @@ class Behavior extends \yii\base\Behavior {
                 $model = $this->owner->find()->where([
                             $this->getOwnerKeyAttr() => $itemKeys[$i]
                         ])->one();
-
+                
                 $this->_pullRestrictions($model, $restrictions);
 
+                \Yii::trace('Condition: ' . $model->{$this->column}. ' '. $currentModels[$i]->{$this->column});
+                
                 if ($model->{$this->column} != $currentModels[$i]->{$this->column})
                 {
                     $model->{$this->column} = $currentModels[$i]->{$this->column};
@@ -219,7 +221,7 @@ class Behavior extends \yii\base\Behavior {
                     {
                         $transaction->rollback();
 
-                        throw new Exception('Cannot set model sort order.');
+                        throw new \ErrorException('Cannot set model sort order.');
                     }
                 }
             }
