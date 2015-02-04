@@ -103,39 +103,6 @@ class Behavior extends \yii\base\Behavior {
     }
 
     /**
-     * Retrieves model sort ID
-     * @return string model sort ID
-     */
-    public function getOwnerKey()
-    {
-        if (isset($this->key))
-        {
-            return $this->owner->{$this->key};
-        }
-
-        return $this->owner->primaryKey;
-    }
-
-    /**
-     * Retrieves model sort ID attr name
-     * @return string model sort ID attr name
-     */
-    public function getOwnerKeyAttr()
-    {
-        if (isset($this->key))
-        {
-            return $this->key;
-        }
-
-        if (is_array($this->owner->tableSchema->primaryKey))
-        {
-            return ArrayHelper::getValue($this->owner->tableSchema->primaryKey, 0);
-        }
-
-        return $this->owner->tableSchema->primaryKey;
-    }
-
-    /**
      * Retrieves current owner sortOrder
      * @param boolean $reversed if sortOrder should be retrieves in normal or reverse order
      * @return int current sortOrder
@@ -152,47 +119,6 @@ class Behavior extends \yii\base\Behavior {
         }
 
         return $this->owner->{$this->column};
-    }
-
-    /**
-     * Retrieves maximum sortOrder value for 
-     * @param $items items which will be included
-     * @return int max sortOrder
-     */
-    public function getMaxSortOrder($items = [], $restrictions = [])
-    {
-        $query = (new Query())->from($this->owner->tableName());
-
-        if (!empty($items))
-        {
-            $query->where(['in', $this->getOwnerKeyAttr(), $items]);
-        }
-
-        if (!empty($restrictions))
-        {
-            foreach ($restrictions as $column => $values)
-            {
-                $query->andWhere(['in', $column, $values]);
-            }
-        }
-
-        return (int) $query->max($this->column);
-    }
-
-    /**
-     * Resets sortOrder and sets it to model ID value
-     * @param array $items defines which models should be included, if is empty it includes all models
-     * @return int 
-     */
-    public function resetSortOrder($items = [])
-    {
-        $condition = (empty($items)) ? '' : sprintf(' WHERE %s IN (%s)', $this->getOwnerKeyAttr(), implode(', ', $items));
-
-        $sql = sprintf('UPDATE `%s` SET `%s`=`%s`%s', $this->owner->tableName(), $this->column, $this->getOwnerKeyAttr(), $condition);
-
-        $query = \Yii::$app->db->createCommand($sql);
-
-        return $query->execute();
     }
 
     /**
@@ -245,6 +171,161 @@ class Behavior extends \yii\base\Behavior {
     }
 
     /**
+     * Is first in sorted row
+     * @param int $sort sort type
+     * @return boolean TRUE if is first, FALSE otherwise
+     */
+    public function isFirst($sort = SORT_ASC)
+    {
+        $sorted = ArrayHelper::getColumn($this->_getSortedModels($sort), $this->getOwnerKeyAttr());
+
+        $last = array_shift($sorted);
+
+        return (null !== $last && $this->getOwnerKey() === (int) $last);
+    }
+
+    /**
+     * Is last in sorted row
+     * @param int $sort sort type
+     * @return boolean TRUE if is last, FALSE otherwise
+     */
+    public function isLast($sort = SORT_ASC)
+    {
+        $sorted = ArrayHelper::getColumn($this->_getSortedModels($sort), $this->getOwnerKeyAttr());
+
+        $last = array_pop($sorted);
+
+        return (null !== $last && $this->getOwnerKey() === (int) $last);
+    }
+
+    /**
+     * Retrieves prev in sorted row
+     * @param int $sort sort type
+     * @return ActiveRecord previous record
+     */
+    public function prev($sort = SORT_ASC)
+    {
+        $sorted = ArrayHelper::getColumn($this->_getSortedModels($sort), $this->getOwnerKeyAttr());
+
+        $last = array_pop($sorted);
+    }
+
+    /**
+     * Retrieves next in sorted row
+     * @param int $sort sort type
+     * @return ActiveRecord previous record
+     */ public function next($sort = SORT_ASC)
+    {
+        $sorted = ArrayHelper::getColumn($this->_getSortedModels($sort), $this->getOwnerKeyAttr());
+
+        $last = array_pop($sorted);
+    }
+
+    /**
+     * Retrieves model sort ID
+     * @return string model sort ID
+     */
+    protected function getOwnerKey()
+    {
+        if (isset($this->key))
+        {
+            return $this->owner->{$this->key};
+        }
+
+        return $this->owner->primaryKey;
+    }
+
+    /**
+     * Retrieves model sort ID attr name
+     * @return string model sort ID attr name
+     */
+    protected function getOwnerKeyAttr()
+    {
+        if (isset($this->key))
+        {
+            return $this->key;
+        }
+
+        if (is_array($this->owner->tableSchema->primaryKey))
+        {
+            return ArrayHelper::getValue($this->owner->tableSchema->primaryKey, 0);
+        }
+
+        return $this->owner->tableSchema->primaryKey;
+    }
+
+    /**
+     * Retrieves maximum sortOrder value for 
+     * @param $items items which will be included
+     * @return int max sortOrder
+     */
+    protected function getMaxSortOrder($items = [], $restrictions = [])
+    {
+        $query = $this->_getQuery($items, $restrictions);
+
+        return (int) $query->max($this->column);
+    }
+
+    /**
+     * Resets sortOrder and sets it to model ID value
+     * @param array $items defines which models should be included, if is empty it includes all models
+     * @return int 
+     */
+    protected function resetSortOrder($items = [])
+    {
+        $condition = (empty($items)) ? '' : sprintf(' WHERE %s IN (%s)', $this->getOwnerKeyAttr(), implode(', ', $items));
+
+        $sql = sprintf('UPDATE `%s` SET `%s`=`%s`%s', $this->owner->tableName(), $this->column, $this->getOwnerKeyAttr(), $condition);
+
+        $query = \Yii::$app->db->createCommand($sql);
+
+        return $query->execute();
+    }
+
+    /**
+     * Returns base query
+     * @param array $items given restricted items
+     * @param array $restrictions given restrictions
+     * @return \yii\db\ActiveQuery query
+     */
+    private function _getQuery($items = [], $restrictions = [])
+    {
+        $query = (new Query())->from($this->owner->tableName());
+
+        if (!empty($items))
+        {
+            $query->where(['in', $this->getOwnerKeyAttr(), $items]);
+        }
+
+        if (!empty($restrictions))
+        {
+            foreach ($restrictions as $column => $values)
+            {
+                $query->andWhere(['in', $column, $values]);
+            }
+        }
+
+        return $query;
+    }
+
+    /**
+     * Retrieves sorted models
+     * @return array sorted models
+     */
+    private function _getSortedModels($sort = SORT_ASC)
+    {
+        $restrictions = [];
+
+        $this->_pullRestrictions($this->owner, $restrictions);
+
+        $query = $this->_getQuery([], $restrictions);
+
+        $query->orderBy([$this->column => $sort]);
+
+        return $query->all();
+    }
+
+    /**
      * Retrieves all current models
      * @param array $items current models keys
      * @return array current models
@@ -271,6 +352,8 @@ class Behavior extends \yii\base\Behavior {
                 $restrictions[$attr][] = $model->{$attr};
             }
         }
+
+        return $restrictions;
     }
 
     /**
