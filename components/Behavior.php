@@ -201,24 +201,43 @@ class Behavior extends \yii\base\Behavior {
     /**
      * Retrieves prev in sorted row
      * @param int $sort sort type
-     * @return ActiveRecord previous record
+     * @return int primary key of prev record in row
      */
     public function prev($sort = SORT_ASC)
     {
         $sorted = ArrayHelper::getColumn($this->_getSortedModels($sort), $this->getOwnerKeyAttr());
 
-        $last = array_pop($sorted);
+        $current = array_search($this->getOwnerKey(), $sorted);
+
+        if (false !== $current)
+        {
+            $next = ArrayHelper::getValue($sorted, --$current, null);
+
+            return $next;
+        }
+
+        return null;
     }
 
     /**
      * Retrieves next in sorted row
      * @param int $sort sort type
-     * @return ActiveRecord previous record
-     */ public function next($sort = SORT_ASC)
+     * @return int primary key of next record in row
+     */
+    public function next($sort = SORT_ASC)
     {
         $sorted = ArrayHelper::getColumn($this->_getSortedModels($sort), $this->getOwnerKeyAttr());
 
-        $last = array_pop($sorted);
+        $current = array_search($this->getOwnerKey(), $sorted);
+
+        if (false !== $current)
+        {
+            $next = ArrayHelper::getValue($sorted, ++$current, null);
+
+            return $next;
+        }
+
+        return null;
     }
 
     /**
