@@ -1,5 +1,4 @@
 <?php
-
 /**
  * @link http://www.digitaldeals.cz/
  * @copyright Copyright (c) 2014 Digital Deals s.r.o. 
@@ -128,6 +127,8 @@ class Behavior extends \yii\base\Behavior {
     {
         $itemKeys = Yii::$app->request->post($this->index, false);
 
+        $this->_parseKeys($itemKeys);
+
         if ($itemKeys && is_array($itemKeys))
         {
             $transaction = \Yii::$app->db->beginTransaction();
@@ -146,8 +147,8 @@ class Behavior extends \yii\base\Behavior {
             for ($i = 0; $i < count($itemKeys); $i++)
             {
                 $model = $this->owner->find()->where([
-                            $this->getOwnerKeyAttr() => $itemKeys[$i]
-                        ])->one();
+                        $this->getOwnerKeyAttr() => $itemKeys[$i]
+                    ])->one();
 
                 $this->_pullRestrictions($model, $restrictions);
 
@@ -302,6 +303,23 @@ class Behavior extends \yii\base\Behavior {
     }
 
     /**
+     * Parses given keys
+     * @param array given keys
+     */
+    private function _parseKeys(&$keys)
+    {
+        foreach ($keys as $id => $key)
+        {
+            $decoded = \yii\helpers\Json::decode($key);
+
+            if (is_array($decoded))
+            {
+                $keys[$id] = array_shift($decoded);
+            }
+        }
+    }
+
+    /**
      * Returns base query
      * @param array $items given restricted items
      * @param array $restrictions given restrictions
@@ -352,9 +370,9 @@ class Behavior extends \yii\base\Behavior {
     private function _getCurrentModels($items = [], $sort = SORT_DESC)
     {
         return $this->owner->find()
-                        ->where([$this->getOwnerKeyAttr() => $items])
-                        ->orderBy([$this->column => $sort])
-                        ->all();
+                ->where([$this->getOwnerKeyAttr() => $items])
+                ->orderBy([$this->column => $sort])
+                ->all();
     }
 
     /**
@@ -421,7 +439,5 @@ class Behavior extends \yii\base\Behavior {
 
         $transaction->commit();
     }
-
 }
-
 ?>
