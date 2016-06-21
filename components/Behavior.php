@@ -140,27 +140,35 @@ class Behavior extends \yii\base\Behavior {
                 $this->resetSortOrder($itemKeys);
             }
 
-            $currentModels = $this->_getCurrentModels($itemKeys, $sort);
-
+            $affectedModels = [];
             $restrictions = [];
 
+            // find all affected models and pull all restrictions
             for ($i = 0; $i < count($itemKeys); $i++)
             {
-                $model = $this->owner->find()->where([
-                        $this->getOwnerKeyAttr() => $itemKeys[$i]
-                    ])->one();
+                $affectedModels[$i] = $this->owner->findOne($itemKeys[$i]);
 
-                $this->_pullRestrictions($model, $restrictions);
+                $this->_pullRestrictions($affectedModels[$i], $restrictions);
+            }
 
-                if ($model->{$this->column} != $currentModels[$i]->{$this->column})
+            // find all current models in db
+            $currentModels = $this->_getCurrentModels($itemKeys, $sort, $restrictions);
+
+            // upadte & save all affected models
+            for ($i = 0; $i < count($itemKeys); $i++)
+            {
+                if (isset($affectedModels[$i]))
                 {
-                    $model->{$this->column} = $currentModels[$i]->{$this->column};
-
-                    if (!$model->save())
+                    if ($affectedModels[$i]->{$this->column} != $currentModels[$i]->{$this->column})
                     {
-                        $transaction->rollback();
+                        $affectedModels[$i]->{$this->column} = $currentModels[$i]->{$this->column};
 
-                        throw new \ErrorException('Cannot set model sort order.');
+                        if (!$affectedModels[$i]->save())
+                        {
+                            $transaction->rollback();
+
+                            throw new \ErrorException('Cannot set model sort order.');
+                        }
                     }
                 }
             }
@@ -310,12 +318,7 @@ class Behavior extends \yii\base\Behavior {
     {
         foreach ($keys as $id => $key)
         {
-            $decoded = \yii\helpers\Json::decode($key);
-
-            if (is_array($decoded))
-            {
-                $keys[$id] = array_shift($decoded);
-            }
+            $keys[$id] = \yii\helpers\Json::decode($key);
         }
     }
 
@@ -367,12 +370,18 @@ class Behavior extends \yii\base\Behavior {
      * @param array $items current models keys
      * @return array current models
      */
-    private function _getCurrentModels($items = [], $sort = SORT_DESC)
+    private function _getCurrentModels($items = [], $sort = SORT_DESC, $restrictions = [])
     {
-        return $this->owner->find()
-                ->where([$this->getOwnerKeyAttr() => $items])
-                ->orderBy([$this->column => $sort])
-                ->all();
+        $query = $this->owner->find()
+            ->where([$this->getOwnerKeyAttr() => $items])
+            ->orderBy([$this->column => $sort]);
+
+        if ($restrictions)
+        {
+            $query->andWhere($restrictions);
+        }
+
+        return $query->all();
     }
 
     /**
