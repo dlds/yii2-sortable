@@ -413,7 +413,7 @@ class Behavior extends \yii\base\Behavior {
         {
             foreach ($restrictions as $column => $values)
             {
-                $query->where([$column => $values]);
+                $query->andWhere([$column => $values]);
             }
         }
     }
