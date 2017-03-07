@@ -52,15 +52,15 @@ class Behavior extends \yii\base\Behavior {
     public function events()
     {
         return [
-            ActiveRecord::EVENT_BEFORE_INSERT => 'handleBeforeInsert',
-            ActiveRecord::EVENT_AFTER_DELETE => 'handleAfterDelete'
+            ActiveRecord::EVENT_BEFORE_INSERT => '__srtblHandleBeforeInsert',
+            ActiveRecord::EVENT_AFTER_DELETE => '__srtblHandleAfterDelete'
         ];
     }
 
     /**
      * Before save
      */
-    public function handleBeforeInsert()
+    public function __srtblHandleBeforeInsert()
     {
         /** @var ActiveRecord $model */
         $model = $this->owner;
@@ -82,7 +82,7 @@ class Behavior extends \yii\base\Behavior {
     /**
      * After delete
      */
-    public function handleAfterDelete()
+    public function __srtblHandleAfterDelete()
     {
         $restrictions = [];
 
