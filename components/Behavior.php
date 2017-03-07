@@ -1,7 +1,7 @@
 <?php
 /**
  * @link http://www.digitaldeals.cz/
- * @copyright Copyright (c) 2014 Digital Deals s.r.o. 
+ * @copyright Copyright (c) 2014 Digital Deals s.r.o.
  * @license http://www.digitaldeals.cz/license/
  */
 
@@ -24,7 +24,8 @@ use yii\helpers\ArrayHelper;
  *
  * @author Jiri Svoboda <jiri.svoboda@dlds.cz>
  */
-class Behavior extends \yii\base\Behavior {
+class Behavior extends \yii\base\Behavior
+{
 
     /**
      * @var string name of attr to be used as key
@@ -47,6 +48,16 @@ class Behavior extends \yii\base\Behavior {
     public $index = 'sortItems';
 
     /**
+     * @var bool
+     */
+    private $_prevent = false;
+
+    /**
+     * @var bool
+     */
+    private $_force = false;
+
+    /**
      * @return array events
      */
     public function events()
@@ -58,6 +69,22 @@ class Behavior extends \yii\base\Behavior {
     }
 
     /**
+     * Prevent handling order
+     */
+    public function __srtblPrevent()
+    {
+        $this->_prevent = true;
+    }
+
+    /**
+     * Force handling order
+     */
+    public function __srtblForce()
+    {
+        $this->_force = true;
+    }
+
+    /**
      * Before save
      */
     public function __srtblHandleBeforeInsert()
@@ -65,9 +92,14 @@ class Behavior extends \yii\base\Behavior {
         /** @var ActiveRecord $model */
         $model = $this->owner;
 
-        if (!$model->hasAttribute($this->column))
-        {
+        if (!$model->hasAttribute($this->column)) {
             throw new InvalidConfigException("Invalid sortable column `{$this->column}`.");
+        }
+
+        if ($this->_prevent && !$this->_force) {
+
+            $model->{$this->column} = 0;
+            return false;
         }
 
         $restrictions = [];
@@ -108,8 +140,7 @@ class Behavior extends \yii\base\Behavior {
      */
     public function getSortOrder($reversed = false)
     {
-        if ($reversed)
-        {
+        if ($reversed) {
             $restrictions = [];
 
             $this->_pullRestrictions($this->owner, $restrictions);
@@ -129,14 +160,12 @@ class Behavior extends \yii\base\Behavior {
 
         $this->_parseKeys($itemKeys);
 
-        if ($itemKeys && is_array($itemKeys))
-        {
+        if ($itemKeys && is_array($itemKeys)) {
             $transaction = \Yii::$app->db->beginTransaction();
 
             $maxSortOrder = $this->getMaxSortOrder($itemKeys);
 
-            if (!is_numeric($maxSortOrder) || $maxSortOrder == 0)
-            {
+            if (!is_numeric($maxSortOrder) || $maxSortOrder == 0) {
                 $this->resetSortOrder($itemKeys);
             }
 
@@ -144,8 +173,7 @@ class Behavior extends \yii\base\Behavior {
             $restrictions = [];
 
             // find all affected models and pull all restrictions
-            for ($i = 0; $i < count($itemKeys); $i++)
-            {
+            for ($i = 0; $i < count($itemKeys); $i++) {
                 $affectedModels[$i] = $this->owner->findOne($itemKeys[$i]);
 
                 $this->_pullRestrictions($affectedModels[$i], $restrictions);
@@ -155,16 +183,12 @@ class Behavior extends \yii\base\Behavior {
             $currentModels = $this->_getCurrentModels($itemKeys, $sort, $restrictions);
 
             // upadte & save all affected models
-            for ($i = 0; $i < count($itemKeys); $i++)
-            {
-                if (isset($affectedModels[$i]))
-                {
-                    if ($affectedModels[$i]->{$this->column} != $currentModels[$i]->{$this->column})
-                    {
+            for ($i = 0; $i < count($itemKeys); $i++) {
+                if (isset($affectedModels[$i])) {
+                    if ($affectedModels[$i]->{$this->column} != $currentModels[$i]->{$this->column}) {
                         $affectedModels[$i]->{$this->column} = $currentModels[$i]->{$this->column};
 
-                        if (!$affectedModels[$i]->save())
-                        {
+                        if (!$affectedModels[$i]->save()) {
                             $transaction->rollback();
 
                             throw new \ErrorException('Cannot set model sort order.');
@@ -190,7 +214,7 @@ class Behavior extends \yii\base\Behavior {
 
         $last = array_shift($sorted);
 
-        return (null !== $last && $this->getOwnerKey() === (int) $last);
+        return (null !== $last && $this->getOwnerKey() === (int)$last);
     }
 
     /**
@@ -204,7 +228,7 @@ class Behavior extends \yii\base\Behavior {
 
         $last = array_pop($sorted);
 
-        return (null !== $last && $this->getOwnerKey() === (int) $last);
+        return (null !== $last && $this->getOwnerKey() === (int)$last);
     }
 
     /**
@@ -218,8 +242,7 @@ class Behavior extends \yii\base\Behavior {
 
         $current = array_search($this->getOwnerKey(), $sorted);
 
-        if (false !== $current)
-        {
+        if (false !== $current) {
             $next = ArrayHelper::getValue($sorted, --$current, null);
 
             return $next;
@@ -239,8 +262,7 @@ class Behavior extends \yii\base\Behavior {
 
         $current = array_search($this->getOwnerKey(), $sorted);
 
-        if (false !== $current)
-        {
+        if (false !== $current) {
             $next = ArrayHelper::getValue($sorted, ++$current, null);
 
             return $next;
@@ -255,8 +277,7 @@ class Behavior extends \yii\base\Behavior {
      */
     protected function getOwnerKey()
     {
-        if (isset($this->key))
-        {
+        if (isset($this->key)) {
             return $this->owner->{$this->key};
         }
 
@@ -269,13 +290,11 @@ class Behavior extends \yii\base\Behavior {
      */
     protected function getOwnerKeyAttr()
     {
-        if (isset($this->key))
-        {
+        if (isset($this->key)) {
             return $this->key;
         }
 
-        if (is_array($this->owner->tableSchema->primaryKey))
-        {
+        if (is_array($this->owner->tableSchema->primaryKey)) {
             return ArrayHelper::getValue($this->owner->tableSchema->primaryKey, 0);
         }
 
@@ -283,7 +302,7 @@ class Behavior extends \yii\base\Behavior {
     }
 
     /**
-     * Retrieves maximum sortOrder value for 
+     * Retrieves maximum sortOrder value for
      * @param $items items which will be included
      * @return int max sortOrder
      */
@@ -291,13 +310,13 @@ class Behavior extends \yii\base\Behavior {
     {
         $query = $this->_getQuery($items, $restrictions);
 
-        return (int) $query->max($this->column);
+        return (int)$query->max($this->column);
     }
 
     /**
      * Resets sortOrder and sets it to model ID value
      * @param array $items defines which models should be included, if is empty it includes all models
-     * @return int 
+     * @return int
      */
     protected function resetSortOrder($items = [])
     {
@@ -316,8 +335,7 @@ class Behavior extends \yii\base\Behavior {
      */
     private function _parseKeys(&$keys)
     {
-        foreach ($keys as $id => $key)
-        {
+        foreach ($keys as $id => $key) {
             $keys[$id] = \yii\helpers\Json::decode($key);
         }
     }
@@ -332,15 +350,12 @@ class Behavior extends \yii\base\Behavior {
     {
         $query = (new Query())->from($this->owner->tableName());
 
-        if (!empty($items))
-        {
+        if (!empty($items)) {
             $query->where(['in', $this->getOwnerKeyAttr(), $items]);
         }
 
-        if (!empty($restrictions))
-        {
-            foreach ($restrictions as $column => $values)
-            {
+        if (!empty($restrictions)) {
+            foreach ($restrictions as $column => $values) {
                 $query->andWhere(['in', $column, $values]);
             }
         }
@@ -376,8 +391,7 @@ class Behavior extends \yii\base\Behavior {
             ->where([$this->getOwnerKeyAttr() => $items])
             ->orderBy([$this->column => $sort]);
 
-        if ($restrictions)
-        {
+        if ($restrictions) {
             $query->andWhere($restrictions);
         }
 
@@ -391,10 +405,8 @@ class Behavior extends \yii\base\Behavior {
      */
     private function _pullRestrictions(ActiveRecord $model, &$restrictions)
     {
-        foreach ($this->restrictions as $attr)
-        {
-            if (isset($model->{$attr}) && (!isset($restrictions[$attr]) || !in_array($model->{$attr}, $restrictions[$attr])))
-            {
+        foreach ($this->restrictions as $attr) {
+            if (isset($model->{$attr}) && (!isset($restrictions[$attr]) || !in_array($model->{$attr}, $restrictions[$attr]))) {
                 $restrictions[$attr][] = $model->{$attr};
             }
         }
@@ -409,10 +421,8 @@ class Behavior extends \yii\base\Behavior {
      */
     private function _assignRestrictions($restrictions, &$query)
     {
-        if (!empty($restrictions))
-        {
-            foreach ($restrictions as $column => $values)
-            {
+        if (!empty($restrictions)) {
+            foreach ($restrictions as $column => $values) {
                 $query->andWhere([$column => $values]);
             }
         }
@@ -434,10 +444,8 @@ class Behavior extends \yii\base\Behavior {
 
         $sortOrder = 1;
 
-        foreach ($models as $model)
-        {
-            if ($model->{$this->column} != $sortOrder)
-            {
+        foreach ($models as $model) {
+            if ($model->{$this->column} != $sortOrder) {
                 $model->{$this->column} = $sortOrder;
 
                 $model->save();
@@ -449,4 +457,5 @@ class Behavior extends \yii\base\Behavior {
         $transaction->commit();
     }
 }
+
 ?>
